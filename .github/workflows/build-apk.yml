@@ -1,0 +1,60 @@
+name: Build SAMD Studio APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Cordova
+      run: npm install -g cordova
+
+    - name: Create Cordova Project
+      run: |
+        cordova create myapp com.samd.studio "SAMD Studio"
+        cd myapp
+        cordova platform add android
+
+    - name: Copy Web Files into App
+      run: |
+        rm -rf myapp/www/*
+        rsync -av --exclude='myapp' --exclude='.github' --exclude='.git' ./ myapp/www/
+
+    - name: Configure Webview and Security
+      run: |
+        cd myapp
+        sed -i 's|<content src="index.html" />|<content src="index.html" />|g' config.xml
+        sed -i 's|</widget>|    <preference name="SplashScreenDelay" value="0" />\n    <preference name="FadeSplashScreenDuration" value="0" />\n</widget>|g' config.xml
+        if [ -f "../icon.jpg" ]; then
+          sed -i 's|</widget>|    <icon src="../icon.jpg" />\n</widget>|g' config.xml
+        fi
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Build Android APK
+      run: |
+        cd myapp
+        cordova build android --debug
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SAMD-Studio-APK
+        path: myapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
